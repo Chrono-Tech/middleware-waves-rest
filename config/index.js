@@ -18,26 +18,49 @@ const path = require('path'),
   }, 
   node = {
     rpc: process.env.RPC || 'http://localhost:6869'
-  };
+  },
+  rabbit = {
+    url: process.env.RABBIT_URI || 'amqp://localhost:5672',
+    serviceName: process.env.RABBIT_SERVICE_NAME || 'app_waves'
+  },
+  accountPrefix = process.env.MONGO_ACCOUNTS_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves',
+  profilePrefix = process.env.MONGO_PROFILE_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves',
+  collectionPrefix = process.env.MONGO_DATA_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves';
 
 let config = {
   mongo: {
     accounts: {
       uri: process.env.MONGO_ACCOUNTS_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/data',
-      collectionPrefix: process.env.MONGO_ACCOUNTS_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves'
+      collectionPrefix: accountPrefix
+    },
+    profile: {
+      uri: process.env.MONGO_PROFILE_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/data',
+      collectionPrefix: profilePrefix
     },
     data: {
       uri: process.env.MONGO_DATA_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/data',
-      collectionPrefix: process.env.MONGO_DATA_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves',
+      collectionPrefix: collectionPrefix,
       useData: process.env.USE_MONGO_DATA ? parseInt(process.env.USE_MONGO_DATA) : 1
     }
   },
   node,
   rest,
+  rabbit,
+  systemRabbit: {
+    url: process.env.SYSTEM_RABBIT_URI || process.env.RABBIT_URI || 'amqp://localhost:5672',
+    exchange: process.env.SYSTEM_RABBIT_EXCHANGE || 'internal',
+    serviceName: process.env.SYSTEM_RABBIT_SERVICE_NAME || 'system' 
+  },
+  checkSystem: process.env.CHECK_SYSTEM || true,
   nodered: {
     mongo: {
       uri: process.env.NODERED_MONGO_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/data',
       collectionPrefix: process.env.NODE_RED_MONGO_COLLECTION_PREFIX || ''
+    },
+    logging: {
+      console: {
+        level: process.env.LOG_LEVEL || 'info'
+      }
     },
     autoSyncMigrations: process.env.NODERED_AUTO_SYNC_MIGRATIONS || true,
     customNodesDir: [path.join(__dirname, '../')],
@@ -54,12 +77,16 @@ let config = {
         ['request-promise']: require('request-promise'),
         apiKey: process.env.API_KEY || 'password',
         mongo: {
-          accountPrefix: process.env.MONGO_ACCOUNTS_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves',
-          collectionPrefix: process.env.MONGO_DATA_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'waves'
+          accountPrefix,
+          collectionPrefix
         },
-        rabbit: {
-          url: process.env.RABBIT_URI || 'amqp://localhost:5672',
-          serviceName: process.env.RABBIT_SERVICE_NAME || 'app_waves'
+        rabbit,
+        laborx: {
+          url: process.env.LABORX_RABBIT_URI || 'amqp://localhost:5672',
+          serviceName: process.env.LABORX_RABBIT_SERVICE_NAME || '',
+          authProvider: process.env.LABORX || 'http://localhost:3001/api/v1/security',
+          profileModel: profilePrefix + 'Profile',
+          dbAlias: 'profile'
         }
       }
     }

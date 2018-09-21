@@ -11,16 +11,26 @@ const config = require('./config'),
   bunyan = require('bunyan'),
   migrator = require('middleware_service.sdk').migrator,
   _ = require('lodash'),
-  log = bunyan.createLogger({name: 'core.rest'}),
+  AmqpService = require('middleware_common_infrastructure/AmqpService'),
+  InfrastructureInfo = require('middleware_common_infrastructure/InfrastructureInfo'),
+  InfrastructureService = require('middleware_common_infrastructure/InfrastructureService'),
+  models = require('./models'),
+  log = bunyan.createLogger({name: 'core.rest', level: config.nodered.logging.console.level}),
   redInitter = require('middleware_service.sdk').init;
 
+/**
+ * @module entry point
+ * @description expose an express web server for txs
+ * and addresses manipulation
+ */
+
+
 mongoose.Promise = Promise;
-mongoose.accounts = mongoose.createConnection(config.mongo.accounts.uri);
+mongoose.accounts = mongoose.createConnection(config.mongo.accounts.uri, {useMongoClient: true});
+mongoose.profile = mongoose.createConnection(config.mongo.profile.uri, {useMongoClient: true});
+mongoose.data = mongoose.createConnection(config.mongo.data.uri, {useMongoClient: true});
 
-if (config.mongo.data.useData)
-  mongoose.data = mongoose.createConnection(config.mongo.data.uri);
-
-_.chain([mongoose.accounts, mongoose.data])
+_.chain([mongoose.accounts, mongoose.data, mongoose.profile])
   .compact().forEach(connection =>
     connection.on('disconnected', function () {
       log.error('mongo disconnected!');
@@ -28,17 +38,44 @@ _.chain([mongoose.accounts, mongoose.data])
     })
   ).value();
 
-const init = async () => {
+models.init();
 
-  require('require-all')({
-    dirname: path.join(__dirname, '/models'),
-    filter: /(.+Model)\.js$/
+
+const runSystem = async function () {
+  const rabbit = new AmqpService(
+    config.systemRabbit.url, 
+    config.systemRabbit.exchange,
+    config.systemRabbit.serviceName
+  );
+  const info = new InfrastructureInfo(require('./package.json'));
+  const system = new InfrastructureService(info, rabbit, {checkInterval: 10000});
+  await system.start();
+  system.on(system.REQUIREMENT_ERROR, ({requirement, version}) => {
+    log.error(`Not found requirement with name ${requirement.name} version=${requirement.version}.` +
+        ` Last version of this middleware=${version}`);
+    process.exit(1);
   });
-
-  if (config.nodered.autoSyncMigrations)
-    await migrator.run(config.nodered.mongo.uri, path.join(__dirname, 'migrations'));
-
-  redInitter(config);
+  await system.checkRequirements();
+  system.periodicallyCheck();
 };
 
-module.exports = init();
+
+
+const init = async () => {
+  if (config.checkSystem)
+    await runSystem();
+
+  if (config.nodered.autoSyncMigrations)
+    await migrator.run(
+      config,
+      path.join(__dirname, 'migrations')
+    );
+
+  redInitter(config);
+
+};
+
+module.exports = init().catch((e) => {
+  log.error(e);
+  process.exit(1);
+});
