@@ -3,34 +3,22 @@ dist: trusty
 os: linux
 group: stable
 language: node_js
-node_js: 8.11.1
+node_js: 8.11.3
 
 services:
   - mongodb
   - rabbitmq
 
 before_install:
+  - export LABORX_USE_AUTH=1
   - mongo data --eval 'db.dropDatabase();'
   - sudo apt-get update
   - sudo apt-get install python2.7 git-all pkg-config libncurses5-dev libssl-dev libnss3-dev libexpat-dev libc6-dev -y
 
 
 install:
-  - sudo rabbitmq-plugins enable rabbitmq_web_stomp
   - npm install
   - npm install -g pm2
-
-before_script:
-    - |
-      if [ "$TRAVIS_BRANCH" == "master" ]; then
-        cd $TRAVIS_BUILD_DIR/ && git clone https://github.com/chronobank/middleware-waves-blockprocessor 
-      else
-        cd $TRAVIS_BUILD_DIR/ && git clone -b develop https://github.com/chronobank/middleware-waves-blockprocessor 
-      fi;
-    - cd $TRAVIS_BUILD_DIR/middleware-waves-blockprocessor && npm install
-    - cd $TRAVIS_BUILD_DIR/middleware-waves-blockprocessor/tests/node && java -jar waves.jar waves-devnet.conf > /dev/null &
-    - sleep 30 && cd $TRAVIS_BUILD_DIR/middleware-waves-blockprocessor && pm2 start index.js
-    - cd $TRAVIS_BUILD_DIR && pm2 start index.js
 
 script:
   - sleep 60 && npm test -- --coverage
